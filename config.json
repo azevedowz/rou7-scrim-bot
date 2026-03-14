@@ -1,8 +1,7 @@
 {
-  "token": "MTAyNzM1NDg3MjQyMjYwMDc0NA.Go1Ozt.ll1XRbHRwBQhtkSTdcP58qtIj5HjzPMWBKuIso",
-  "maxPlayers": 32,
-  "firstPlace": 40,
-  "secondPlace": 25,
-  "thirdPlace": 15,
-  "killReward": 1
+ "maxPlayers": 32,
+ "firstPlace": 40,
+ "secondPlace": 25,
+ "thirdPlace": 15,
+ "killReward": 1
 }
