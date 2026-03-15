@@ -41,7 +41,7 @@ console.log("Servidor não encontrado");
 return;
 }
 
-const channel = guild.channels.cache.get(VOICE_CHANNEL_ID);
+const channel = await client.channels.fetch(VOICE_CHANNEL_ID);
 
 if(!channel){
 console.log("Canal de voz não encontrado");
