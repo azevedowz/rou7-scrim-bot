@@ -1,10 +1,12 @@
- const { 
+const { 
 Client,
 GatewayIntentBits,
 ActionRowBuilder,
 ButtonBuilder,
 ButtonStyle
 } = require("discord.js");
+
+const { joinVoiceChannel } = require("@discordjs/voice");
 
 const express = require("express");
 
@@ -18,6 +20,7 @@ GatewayIntentBits.GuildMembers
 });
 
 const ROLE_ID = "1482232995573403820";
+const VOICE_CHANNEL_ID = "1482222083634368525";
 const MAX_PLAYERS = 32;
 
 let scrimOpen = false;
@@ -26,7 +29,25 @@ let kills = {};
 let panelMessage = null;
 
 client.once("ready",()=>{
+
 console.log("ROU7 SCRIM BOT ONLINE");
+
+const guild = client.guilds.cache.first();
+const channel = guild.channels.cache.get(VOICE_CHANNEL_ID);
+
+if(!channel){
+console.log("Canal de voz não encontrado");
+return;
+}
+
+joinVoiceChannel({
+channelId: channel.id,
+guildId: guild.id,
+adapterCreator: guild.voiceAdapterCreator
+});
+
+console.log("Bot entrou na call");
+
 });
 
 client.on("messageCreate", async (message)=>{
