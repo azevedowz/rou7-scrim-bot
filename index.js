@@ -34,8 +34,14 @@ let scrimOpen = false;
 let players = [];
 let kills = {};
 let weeklyKills = {};
+let globalKills = {};
+let saldoJogadores = {};
+let historicoScrims = [];
+
 let panelMessage = null;
 let row = null;
+
+/* BOT ONLINE */
 
 client.once("ready", async () => {
 
@@ -58,6 +64,30 @@ console.log("Erro ao entrar na call:", err);
 }
 
 });
+
+/* ATUALIZAR PAINEL */
+
+async function atualizarPainel(){
+
+if(!panelMessage) return;
+
+let lista = players.map((id,i)=>`${i+1}. <@${id}>`).join("\n");
+
+if(lista === "") lista = "Nenhum jogador";
+
+await panelMessage.edit({
+content:`🎮 **SCRIM ABERTA**
+
+👥 Jogadores: **${players.length}/${MAX_PLAYERS}**
+
+📋 **Lista**
+${lista}`,
+components:[row]
+});
+
+}
+
+/* COMANDOS */
 
 client.on("messageCreate", async (message)=>{
 
@@ -135,9 +165,11 @@ return message.reply("Uso: !kill @player quantidade");
 
 if(!kills[user.id]) kills[user.id] = 0;
 if(!weeklyKills[user.id]) weeklyKills[user.id] = 0;
+if(!globalKills[user.id]) globalKills[user.id] = 0;
 
 kills[user.id] += amount;
 weeklyKills[user.id] += amount;
+globalKills[user.id] += amount;
 
 message.channel.send(`💀 ${user} recebeu **${amount} kills**
 
@@ -145,7 +177,7 @@ Total: **${kills[user.id]}**`);
 
 }
 
-/* ranking */
+/* ranking sala */
 
 if(cmd === "!ranking"){
 
@@ -176,6 +208,68 @@ ${ranking || "Sem dados"}`);
 
 }
 
+/* ranking global */
+
+if(cmd === "!global"){
+
+const ranking = Object.entries(globalKills)
+.sort((a,b)=>b[1]-a[1])
+.slice(0,10)
+.map((x,i)=>`${i+1}. <@${x[0]}> — ${x[1]} kills`)
+.join("\n");
+
+message.channel.send(`🌎 **TOP 10 GLOBAL**
+
+${ranking || "Sem dados"}`);
+
+}
+
+/* saldo */
+
+if(cmd === "!saldo"){
+
+const user = message.mentions.users.first() || message.author;
+
+let saldo = saldoJogadores[user.id] || 0;
+
+message.channel.send(`💰 ${user} possui **R$${saldo}** acumulados.`);
+
+}
+
+/* remover jogador */
+
+if(cmd === "!remover"){
+
+if(!ADMINS.includes(message.author.id))
+return;
+
+const user = message.mentions.users.first();
+
+players = players.filter(p=>p !== user.id);
+
+delete kills[user.id];
+
+atualizarPainel();
+
+message.channel.send(`🚫 ${user} removido da scrim.`);
+
+}
+
+/* resetar scrim */
+
+if(cmd === "!resetarscrim"){
+
+if(!ADMINS.includes(message.author.id))
+return;
+
+scrimOpen = false;
+players = [];
+kills = {};
+
+message.channel.send("♻️ Scrim resetada.");
+
+}
+
 /* finalizar */
 
 if(cmd === "!finalizar"){
@@ -201,11 +295,20 @@ if(i === 0) premio += PREMIO_1;
 if(i === 1) premio += PREMIO_2;
 if(i === 2) premio += PREMIO_3;
 
+if(!saldoJogadores[x[0]]) saldoJogadores[x[0]] = 0;
+
+saldoJogadores[x[0]] += premio;
+
 premioTotalSala += premio;
 
 return `${i+1}º ${player} — ${kill} kills | 💰 R$${premio}`;
 
 }).join("\n");
+
+historicoScrims.push({
+data: new Date(),
+resultado: rankingArray
+});
 
 message.channel.send(`🏆 **SCRIM FINALIZADA**
 
@@ -221,7 +324,7 @@ panelMessage = null;
 
 });
 
-/* interação botões */
+/* BOTÕES */
 
 client.on("interactionCreate", async (interaction)=>{
 
@@ -284,21 +387,7 @@ return;
 
 }
 
-/* atualizar lista no painel */
-
-let lista = players.map((id,i)=>`${i+1}. <@${id}>`).join("\n");
-
-if(lista === "") lista = "Nenhum jogador";
-
-await panelMessage.edit({
-content:`🎮 **SCRIM ABERTA**
-
-👥 Jogadores: **${players.length}/${MAX_PLAYERS}**
-
-📋 **Lista**
-${lista}`,
-components:[row]
-});
+atualizarPainel();
 
 });
 
