@@ -37,6 +37,7 @@ let players = [];
 let kills = {};
 let weeklyKills = {};
 let historico = [];
+let positions = {};
 
 let panelMessage = null;
 let row = null;
@@ -137,6 +138,7 @@ partidaIniciada = false;
 
 players = [];
 kills = {};
+positions = {};
 
 row = new ActionRowBuilder().addComponents(
 
@@ -156,6 +158,28 @@ panelMessage = await message.channel.send({
 content: gerarPainel(),
 components:[row]
 });
+
+}
+
+/* definir posição */
+
+if(cmd === "!posicao"){
+
+if(!ADMINS.includes(message.author.id))
+return message.reply("❌ Apenas admins.");
+
+const user = message.mentions.users.first();
+const pos = parseInt(args[2]);
+
+if(!user || isNaN(pos))
+return message.reply("Uso: !posicao @player numero");
+
+if(!players.includes(user.id))
+return message.reply("⚠️ Jogador não está na scrim.");
+
+positions[user.id] = pos;
+
+message.channel.send(`🏁 ${user} definido como **${pos}º lugar**`);
 
 }
 
@@ -235,15 +259,16 @@ return message.reply("❌ Apenas admins.");
 scrimOpen = false;
 partidaIniciada = false;
 
-const rankingArray = Object.entries(kills)
-.sort((a,b)=>b[1]-a[1]);
+const rankingArray = Object.entries(positions)
+.sort((a,b)=>a[1]-b[1]);
 
 let premioTotalSala = 0;
 
 let resultado = rankingArray.map((x,i)=>{
 
-let player = `<@${x[0]}>`;
-let kill = x[1];
+let playerId = x[0];
+let player = `<@${playerId}>`;
+let kill = kills[playerId] || 0;
 
 let premio = kill * VALOR_KILL;
 
@@ -257,19 +282,10 @@ return `${i+1}º ${player} — ${kill} kills | 💰 R$${premio}`;
 
 }).join("\n");
 
-/* MVP */
-
-let mvp = rankingArray[0];
-let mvpMsg = "";
-
-if(mvp){
-mvpMsg = `⭐ **MVP:** <@${mvp[0]}> — ${mvp[1]} kills`;
-}
-
 /* histórico */
 
 if(rankingArray[0]){
-historico.unshift(`🏆 <@${rankingArray[0][0]}> venceu com ${rankingArray[0][1]} kills`);
+historico.unshift(`🏆 <@${rankingArray[0][0]}> venceu a partida`);
 if(historico.length > 10) historico.pop();
 }
 
@@ -277,12 +293,11 @@ message.channel.send(`🏆 **SCRIM FINALIZADA**
 
 ${resultado}
 
-${mvpMsg}
-
 💰 **Premiação total:** R$${premioTotalSala}`);
 
 players = [];
 kills = {};
+positions = {};
 panelMessage = null;
 
 }
