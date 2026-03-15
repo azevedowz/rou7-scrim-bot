@@ -28,11 +28,19 @@ let players = [];
 let kills = {};
 let panelMessage = null;
 
-client.once("ready",()=>{
+client.once("ready", async ()=>{
 
 console.log("ROU7 SCRIM BOT ONLINE");
 
+setTimeout(()=>{
+
 const guild = client.guilds.cache.first();
+
+if(!guild){
+console.log("Servidor não encontrado");
+return;
+}
+
 const channel = guild.channels.cache.get(VOICE_CHANNEL_ID);
 
 if(!channel){
@@ -47,6 +55,8 @@ adapterCreator: guild.voiceAdapterCreator
 });
 
 console.log("Bot entrou na call");
+
+},5000);
 
 });
 
