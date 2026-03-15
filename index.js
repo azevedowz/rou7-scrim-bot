@@ -31,13 +31,24 @@ const PREMIO_3 = 15;
 const ADMINS = ["649334731145740361"];
 
 let scrimOpen = false;
+let partidaIniciada = false;
+
 let players = [];
 let kills = {};
 let weeklyKills = {};
+let historico = [];
+
 let panelMessage = null;
 let row = null;
 
-/* painel profissional */
+/* reset ranking semanal automático */
+
+setInterval(()=>{
+weeklyKills = {};
+console.log("Ranking semanal resetado");
+}, 7 * 24 * 60 * 60 * 1000);
+
+/* painel */
 
 function gerarPainel(){
 
@@ -73,13 +84,12 @@ ${ranking}
 
 💰 **Premiação**
 🥇 1º R$40
-
 🥈 2º R$25
-
 🥉 3º R$15
-
 💀 1 kill = R$1`;
 }
+
+/* bot pronto */
 
 client.once("ready", async () => {
 
@@ -103,6 +113,8 @@ console.log("Erro ao entrar na call:", err);
 
 });
 
+/* comandos */
+
 client.on("messageCreate", async (message)=>{
 
 if(message.author.bot) return;
@@ -121,6 +133,8 @@ if(scrimOpen)
 return message.reply("⚠️ Já existe uma scrim aberta.");
 
 scrimOpen = true;
+partidaIniciada = false;
+
 players = [];
 kills = {};
 
@@ -145,69 +159,6 @@ components:[row]
 
 }
 
-/* lista */
-
-if(cmd === "!lista"){
-
-if(players.length === 0)
-return message.channel.send("📋 Nenhum jogador inscrito.");
-
-const lista = players.map((id,i)=>`${i+1}. <@${id}>`).join("\n");
-
-message.channel.send(`📋 **INSCRITOS**
-
-${lista}`);
-
-}
-
-/* remover jogador */
-
-if(cmd === "!remover"){
-
-if(!ADMINS.includes(message.author.id))
-return message.reply("❌ Apenas admins.");
-
-const user = message.mentions.users.first();
-
-if(!user)
-return message.reply("Marque um jogador.");
-
-players = players.filter(p=>p !== user.id);
-
-delete kills[user.id];
-
-try{
-const member = await message.guild.members.fetch(user.id);
-await member.roles.remove(ROLE_ID);
-}catch{}
-
-message.channel.send(`🚫 ${user} removido da scrim.`);
-
-if(panelMessage){
-await panelMessage.edit({
-content: gerarPainel(),
-components:[row]
-});
-}
-
-}
-
-/* resetar scrim */
-
-if(cmd === "!resetarscrim"){
-
-if(!ADMINS.includes(message.author.id))
-return message.reply("❌ Apenas admins.");
-
-scrimOpen = false;
-players = [];
-kills = {};
-panelMessage = null;
-
-message.channel.send("♻️ Scrim resetada.");
-
-}
-
 /* registrar kill */
 
 if(cmd === "!kill"){
@@ -215,11 +166,17 @@ if(cmd === "!kill"){
 if(!ADMINS.includes(message.author.id))
 return message.reply("❌ Apenas admins.");
 
+if(!partidaIniciada)
+return message.reply("⚠️ A partida ainda não iniciou.");
+
 const user = message.mentions.users.first();
 const amount = parseInt(args[2]);
 
 if(!user || isNaN(amount))
 return message.reply("Uso: !kill @player quantidade");
+
+if(!players.includes(user.id))
+return message.reply("⚠️ Jogador não está na scrim.");
 
 if(!kills[user.id]) kills[user.id] = 0;
 if(!weeklyKills[user.id]) weeklyKills[user.id] = 0;
@@ -256,6 +213,18 @@ ${ranking || "Sem dados"}`);
 
 }
 
+/* histórico */
+
+if(cmd === "!historico"){
+
+let lista = historico.map((x,i)=>`${i+1}. ${x}`).join("\n");
+
+message.channel.send(`📜 **ÚLTIMAS SCRIMS**
+
+${lista || "Sem histórico"}`);
+
+}
+
 /* finalizar */
 
 if(cmd === "!finalizar"){
@@ -264,6 +233,7 @@ if(!ADMINS.includes(message.author.id))
 return message.reply("❌ Apenas admins.");
 
 scrimOpen = false;
+partidaIniciada = false;
 
 const rankingArray = Object.entries(kills)
 .sort((a,b)=>b[1]-a[1]);
@@ -287,9 +257,27 @@ return `${i+1}º ${player} — ${kill} kills | 💰 R$${premio}`;
 
 }).join("\n");
 
+/* MVP */
+
+let mvp = rankingArray[0];
+let mvpMsg = "";
+
+if(mvp){
+mvpMsg = `⭐ **MVP:** <@${mvp[0]}> — ${mvp[1]} kills`;
+}
+
+/* histórico */
+
+if(rankingArray[0]){
+historico.unshift(`🏆 <@${rankingArray[0][0]}> venceu com ${rankingArray[0][1]} kills`);
+if(historico.length > 10) historico.pop();
+}
+
 message.channel.send(`🏆 **SCRIM FINALIZADA**
 
 ${resultado}
+
+${mvpMsg}
 
 💰 **Premiação total:** R$${premioTotalSala}`);
 
@@ -301,7 +289,7 @@ panelMessage = null;
 
 });
 
-/* interação botões */
+/* botões */
 
 client.on("interactionCreate", async (interaction)=>{
 
@@ -330,6 +318,8 @@ await interaction.editReply(`✅ Entrou (${players.length}/${MAX_PLAYERS})`);
 
 }
 
+/* sair */
+
 if(interaction.customId === "scrim_sair"){
 
 if(!players.includes(interaction.user.id))
@@ -345,18 +335,21 @@ await interaction.editReply(`❌ Saiu (${players.length}/${MAX_PLAYERS})`);
 
 }
 
-/* fechar scrim se lotar */
+/* iniciar automaticamente quando lotar */
 
-if(players.length >= MAX_PLAYERS){
+if(players.length >= MAX_PLAYERS && !partidaIniciada){
 
 scrimOpen = false;
+partidaIniciada = true;
 
 await panelMessage.edit({
-content:`🎮 **SCRIM LOTADA**
+content:`🔥 **SCRIM LOTADA**
 
-👥 Jogadores: **${players.length}/${MAX_PLAYERS}**
+👥 ${players.length}/${MAX_PLAYERS}
 
-🚫 Inscrições encerradas.`,
+🎮 **PARTIDA INICIANDO**
+
+Boa sorte a todos!`,
 components:[]
 });
 
