@@ -1,125 +1,154 @@
-const { 
-Client, 
-GatewayIntentBits, 
-ActionRowBuilder, 
-ButtonBuilder, 
-ButtonStyle 
-} = require("discord.js");
-
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const express = require("express");
 
 const client = new Client({
-intents:[
-GatewayIntentBits.Guilds,
-GatewayIntentBits.GuildMessages,
-GatewayIntentBits.MessageContent
-]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 let players = [];
-let scrimOpen = false;
 let panelMessage = null;
+let scrimOpen = false;
 
-client.once("ready", () => {
-console.log("ROU7 SCRIM BOT ONLINE");
+const ROLE_ID = "1482232995573403820";
+
+client.once("clientReady", () => {
+  console.log("ROU7 SCRIM BOT ONLINE");
 });
 
-client.on("messageCreate", async message => {
+client.on("messageCreate", async (message) => {
 
-if(message.author.bot) return;
+  if (message.author.bot) return;
 
-if(message.content === "!abrirscrim"){
+  if (message.content === "!abrirscrim") {
 
-scrimOpen = true;
-players = [];
+    if (scrimOpen) return message.reply("⚠️ Já existe uma scrim aberta.");
 
-const entrar = new ButtonBuilder()
-.setCustomId("entrar")
-.setLabel("Entrar")
-.setStyle(ButtonStyle.Success);
+    scrimOpen = true;
+    players = [];
 
-const sair = new ButtonBuilder()
-.setCustomId("sair")
-.setLabel("Sair")
-.setStyle(ButtonStyle.Danger);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("entrar")
+        .setLabel("Entrar")
+        .setStyle(ButtonStyle.Success),
 
-const row = new ActionRowBuilder().addComponents(entrar,sair);
+      new ButtonBuilder()
+        .setCustomId("sair")
+        .setLabel("Sair")
+        .setStyle(ButtonStyle.Danger)
+    );
 
-panelMessage = await message.channel.send({
-content:`🎮 **SCRIM ABERTA**
+    panelMessage = await message.channel.send({
+      content: `🎮 **SCRIM ABERTA**
 
 Jogadores: **0/32**
 
 Clique no botão para participar.`,
-components:[row]
+      components: [row]
+    });
+  }
+
+  if (message.content === "!lista") {
+
+    if (players.length === 0) {
+      return message.channel.send("📋 Nenhum jogador inscrito.");
+    }
+
+    const lista = players.map(id => `<@${id}>`).join("\n");
+
+    message.channel.send(`📋 **INSCRITOS**
+
+${lista}`);
+  }
+
 });
 
-}
+client.on("interactionCreate", async (interaction) => {
 
-});
+  if (!interaction.isButton()) return;
 
-client.on("interactionCreate", async interaction => {
+  const member = interaction.member;
 
-if(!interaction.isButton()) return;
+  if (!scrimOpen) {
+    return interaction.reply({
+      content: "❌ Nenhuma scrim aberta.",
+      ephemeral: true
+    });
+  }
 
-await interaction.deferReply({ephemeral:true});
+  if (interaction.customId === "entrar") {
 
-if(!scrimOpen)
-return interaction.editReply("Scrim não está aberta");
+    if (players.includes(interaction.user.id)) {
+      return interaction.reply({
+        content: "⚠️ Você já entrou.",
+        ephemeral: true
+      });
+    }
 
-if(interaction.customId === "entrar"){
+    if (players.length >= 32) {
+      return interaction.reply({
+        content: "🚫 Sala cheia.",
+        ephemeral: true
+      });
+    }
 
-if(players.includes(interaction.user.id))
-return interaction.editReply("Você já está na scrim");
+    players.push(interaction.user.id);
 
-if(players.length >= 32)
-return interaction.editReply("Sala cheia");
+    await member.roles.add(ROLE_ID);
 
-players.push(interaction.user.id);
+    await interaction.reply({
+      content: `✅ Você entrou (${players.length}/32)`,
+      ephemeral: true
+    });
+  }
 
-interaction.editReply("✅ Você entrou na scrim");
+  if (interaction.customId === "sair") {
 
-}
+    if (!players.includes(interaction.user.id)) {
+      return interaction.reply({
+        content: "⚠️ Você não está na scrim.",
+        ephemeral: true
+      });
+    }
 
-if(interaction.customId === "sair"){
+    players = players.filter(id => id !== interaction.user.id);
 
-if(!players.includes(interaction.user.id))
-return interaction.editReply("Você não está na scrim");
+    await member.roles.remove(ROLE_ID);
 
-players = players.filter(p => p !== interaction.user.id);
+    await interaction.reply({
+      content: `❌ Você saiu (${players.length}/32)`,
+      ephemeral: true
+    });
+  }
 
-interaction.editReply("❌ Você saiu da scrim");
-
-}
-
-/* atualizar painel */
-
-if(panelMessage){
-
-panelMessage.edit({
-content:`🎮 **SCRIM ABERTA**
+  if (panelMessage) {
+    await panelMessage.edit({
+      content: `🎮 **SCRIM ABERTA**
 
 Jogadores: **${players.length}/32**
 
-Clique no botão para participar.`,
-});
-
-}
+Clique no botão para participar.`
+    });
+  }
 
 });
 
 client.login(process.env.TOKEN);
 
-/* servidor para render */
+
+/* servidor para Render */
 
 const app = express();
 
-app.get("/",(req,res)=>{
-res.send("ROU7 SCRIM BOT ONLINE");
+app.get("/", (req, res) => {
+  res.send("Bot online");
 });
 
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT,()=>{
-console.log("Web server running");
+app.listen(PORT, () => {
+  console.log("Servidor web ativo");
 });
