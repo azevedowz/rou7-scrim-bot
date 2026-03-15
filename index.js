@@ -39,10 +39,13 @@ let weeklyKills = {};
 let historico = [];
 let positions = {};
 
+let saldo = {};
+let globalWins = {};
+
 let panelMessage = null;
 let row = null;
 
-/* reset ranking semanal automático */
+/* reset semanal */
 
 setInterval(()=>{
 weeklyKills = {};
@@ -56,47 +59,36 @@ function gerarPainel(){
 let lista = players.map((id,i)=>`${i+1}. <@${id}>`).join("\n");
 if(lista === "") lista = "Nenhum jogador";
 
-let ranking = Object.entries(kills)
-.sort((a,b)=>b[1]-a[1])
-.map((x,i)=>{
-
-let kill = x[1];
-let premio = kill * VALOR_KILL;
-
-if(i === 0) premio += PREMIO_1;
-if(i === 1) premio += PREMIO_2;
-if(i === 2) premio += PREMIO_3;
-
-return `${i+1}º <@${x[0]}> — ${kill} kills — 💰 R$${premio}`;
-
-}).join("\n");
-
-if(ranking === "") ranking = "Sem resultados";
-
 return `🎮 **ROU7 SCRIM**
 
-👥 Jogadores: **${players.length}/${MAX_PLAYERS}**
+📊 STATUS
+${scrimOpen ? "🟢 Inscrições abertas" : "🔴 Fechada"}
 
-📋 **Lista**
+👥 Jogadores
+${players.length}/${MAX_PLAYERS}
+
+━━━━━━━━━━━━━━
+
+📋 **LISTA**
 ${lista}
 
-📊 **Placar**
-${ranking}
+━━━━━━━━━━━━━━
 
-💰 **Premiação**
-🥇 1º R$40
-🥈 2º R$25
-🥉 3º R$15
-💀 1 kill = R$1`;
+💰 **PREMIAÇÃO**
+
+🥇 1º — R$40
+🥈 2º — R$25
+🥉 3º — R$15
+💀 Kill — R$1`;
 }
 
-/* bot pronto */
+/* BOT ONLINE */
 
 client.once("ready", async () => {
 
 console.log("ROU7 SCRIM BOT ONLINE");
 
-try {
+try{
 
 const channel = await client.channels.fetch(VOICE_CHANNEL_ID);
 
@@ -108,13 +100,13 @@ adapterCreator: channel.guild.voiceAdapterCreator
 
 console.log("Bot entrou na call");
 
-} catch(err){
-console.log("Erro ao entrar na call:", err);
+}catch(err){
+console.log("Erro call:",err);
 }
 
 });
 
-/* comandos */
+/* COMANDOS */
 
 client.on("messageCreate", async (message)=>{
 
@@ -161,12 +153,36 @@ components:[row]
 
 }
 
-/* definir posição */
+/* lobby */
+
+if(cmd === "!lobby"){
+
+if(!ADMINS.includes(message.author.id))
+return message.reply("❌ Apenas admins.");
+
+const id = args[1];
+const senha = args[2];
+
+if(!id || !senha)
+return message.reply("Uso: !lobby ID SENHA");
+
+message.channel.send(`🎮 **LOBBY DA SCRIM**
+
+🆔 ID: ${id}
+🔑 Senha: ${senha}
+
+👥 ${MAX_PLAYERS} jogadores prontos
+
+🔥 Boa sorte a todos!`);
+
+}
+
+/* posição */
 
 if(cmd === "!posicao"){
 
 if(!ADMINS.includes(message.author.id))
-return message.reply("❌ Apenas admins.");
+return;
 
 const user = message.mentions.users.first();
 const pos = parseInt(args[2]);
@@ -174,78 +190,60 @@ const pos = parseInt(args[2]);
 if(!user || isNaN(pos))
 return message.reply("Uso: !posicao @player numero");
 
-if(!players.includes(user.id))
-return message.reply("⚠️ Jogador não está na scrim.");
-
 positions[user.id] = pos;
 
-message.channel.send(`🏁 ${user} definido como **${pos}º lugar**`);
+message.channel.send(`🏁 ${user} terminou em **${pos}º lugar**`);
 
 }
 
-/* registrar kill */
+/* kill */
 
 if(cmd === "!kill"){
 
 if(!ADMINS.includes(message.author.id))
-return message.reply("❌ Apenas admins.");
-
-if(!partidaIniciada)
-return message.reply("⚠️ A partida ainda não iniciou.");
+return;
 
 const user = message.mentions.users.first();
 const amount = parseInt(args[2]);
 
 if(!user || isNaN(amount))
-return message.reply("Uso: !kill @player quantidade");
-
-if(!players.includes(user.id))
-return message.reply("⚠️ Jogador não está na scrim.");
+return;
 
 if(!kills[user.id]) kills[user.id] = 0;
 if(!weeklyKills[user.id]) weeklyKills[user.id] = 0;
 
-kills[user.id] += amount;
-weeklyKills[user.id] += amount;
+kills[user.id]+=amount;
+weeklyKills[user.id]+=amount;
 
-message.channel.send(`💀 ${user} recebeu **${amount} kills**
-
-Total: **${kills[user.id]}**`);
-
-if(panelMessage){
-await panelMessage.edit({
-content: gerarPainel(),
-components:[row]
-});
-}
+message.channel.send(`💀 ${user} recebeu ${amount} kills`);
 
 }
 
-/* ranking semanal */
+/* saldo */
 
-if(cmd === "!weekly"){
+if(cmd === "!saldo"){
 
-const ranking = Object.entries(weeklyKills)
+let valor = saldo[message.author.id] || 0;
+
+message.reply(`💰 Seu saldo
+
+R$${valor}`);
+
+}
+
+/* ranking global */
+
+if(cmd === "!rankingglobal"){
+
+let ranking = Object.entries(globalWins)
 .sort((a,b)=>b[1]-a[1])
 .slice(0,10)
-.map((x,i)=>`${i+1}. <@${x[0]}> — ${x[1]} kills`)
+.map((x,i)=>`${i+1}. <@${x[0]}> — ${x[1]} vitórias`)
 .join("\n");
 
-message.channel.send(`🏆 **TOP 10 SEMANAL**
+message.channel.send(`🏆 **RANKING GLOBAL**
 
 ${ranking || "Sem dados"}`);
-
-}
-
-/* histórico */
-
-if(cmd === "!historico"){
-
-let lista = historico.map((x,i)=>`${i+1}. ${x}`).join("\n");
-
-message.channel.send(`📜 **ÚLTIMAS SCRIMS**
-
-${lista || "Sem histórico"}`);
 
 }
 
@@ -254,10 +252,10 @@ ${lista || "Sem histórico"}`);
 if(cmd === "!finalizar"){
 
 if(!ADMINS.includes(message.author.id))
-return message.reply("❌ Apenas admins.");
+return;
 
-scrimOpen = false;
-partidaIniciada = false;
+scrimOpen=false;
+partidaIniciada=false;
 
 const rankingArray = Object.entries(positions)
 .sort((a,b)=>a[1]-b[1]);
@@ -272,62 +270,88 @@ let kill = kills[playerId] || 0;
 
 let premio = kill * VALOR_KILL;
 
-if(i === 0) premio += PREMIO_1;
-if(i === 1) premio += PREMIO_2;
-if(i === 2) premio += PREMIO_3;
+if(i===0) premio+=PREMIO_1;
+if(i===1) premio+=PREMIO_2;
+if(i===2) premio+=PREMIO_3;
 
-premioTotalSala += premio;
+if(!saldo[playerId]) saldo[playerId]=0;
+saldo[playerId]+=premio;
+
+premioTotalSala+=premio;
 
 return `${i+1}º ${player} — ${kill} kills | 💰 R$${premio}`;
 
 }).join("\n");
 
-/* histórico */
+/* ranking global */
 
 if(rankingArray[0]){
-historico.unshift(`🏆 <@${rankingArray[0][0]}> venceu a partida`);
-if(historico.length > 10) historico.pop();
+
+let vencedor = rankingArray[0][0];
+
+if(!globalWins[vencedor])
+globalWins[vencedor]=0;
+
+globalWins[vencedor]++;
+
+historico.unshift(`🏆 <@${vencedor}> venceu a partida`);
+
+if(historico.length>10)
+historico.pop();
+
 }
 
 message.channel.send(`🏆 **SCRIM FINALIZADA**
 
 ${resultado}
 
-💰 **Premiação total:** R$${premioTotalSala}`);
+💰 Premiação total: R$${premioTotalSala}`);
 
-players = [];
-kills = {};
-positions = {};
-panelMessage = null;
+players=[];
+kills={};
+positions={};
+panelMessage=null;
 
 }
 
 });
 
-/* botões */
+/* BOTÕES */
 
 client.on("interactionCreate", async (interaction)=>{
 
 if(!interaction.isButton()) return;
 
+try{
+
 await interaction.deferReply({ephemeral:true});
 
 const member = interaction.member;
 
-if(interaction.customId === "scrim_entrar"){
+/* entrar */
+
+if(interaction.customId==="scrim_entrar"){
 
 if(players.includes(interaction.user.id))
 return interaction.editReply("⚠️ Você já entrou.");
 
-if(players.length >= MAX_PLAYERS)
+if(players.length>=MAX_PLAYERS)
 return interaction.editReply("🚫 Sala cheia.");
 
 players.push(interaction.user.id);
-kills[interaction.user.id] = 0;
+kills[interaction.user.id]=0;
 
 try{
 await member.roles.add(ROLE_ID);
 }catch{}
+
+let vagas = MAX_PLAYERS - players.length;
+
+if(vagas===5)
+interaction.channel.send("⚠️ FALTAM 5 VAGAS");
+
+if(vagas===1)
+interaction.channel.send("🔥 ÚLTIMA VAGA");
 
 await interaction.editReply(`✅ Entrou (${players.length}/${MAX_PLAYERS})`);
 
@@ -335,49 +359,55 @@ await interaction.editReply(`✅ Entrou (${players.length}/${MAX_PLAYERS})`);
 
 /* sair */
 
-if(interaction.customId === "scrim_sair"){
+if(interaction.customId==="scrim_sair"){
 
-if(!players.includes(interaction.user.id))
-return interaction.editReply("⚠️ Você não está inscrito.");
-
-players = players.filter(p=>p !== interaction.user.id);
+players = players.filter(p=>p!==interaction.user.id);
 
 try{
 await member.roles.remove(ROLE_ID);
 }catch{}
 
-await interaction.editReply(`❌ Saiu (${players.length}/${MAX_PLAYERS})`);
+await interaction.editReply("❌ Saiu da scrim");
 
 }
 
-/* iniciar automaticamente quando lotar */
+/* iniciar quando lotar */
 
-if(players.length >= MAX_PLAYERS && !partidaIniciada){
+if(players.length>=MAX_PLAYERS && !partidaIniciada){
 
-scrimOpen = false;
-partidaIniciada = true;
+scrimOpen=false;
+partidaIniciada=true;
 
 await panelMessage.edit({
 content:`🔥 **SCRIM LOTADA**
 
 👥 ${players.length}/${MAX_PLAYERS}
 
-🎮 **PARTIDA INICIANDO**
-
-Boa sorte a todos!`,
+Aguardando lobby do host`,
 components:[]
 });
-
-return;
 
 }
 
 if(panelMessage){
 
 await panelMessage.edit({
-content: gerarPainel(),
+content:gerarPainel(),
 components:[row]
 });
+
+}
+
+}catch(err){
+
+console.log("Erro interação:",err);
+
+if(!interaction.replied){
+interaction.reply({
+content:"⚠️ Erro na interação.",
+ephemeral:true
+});
+}
 
 }
 
@@ -385,7 +415,7 @@ components:[row]
 
 client.login(process.env.TOKEN);
 
-/* servidor render */
+/* SERVIDOR RENDER */
 
 const app = express();
 
