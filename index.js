@@ -20,12 +20,22 @@ GatewayIntentBits.GuildMembers
 
 const ROLE_ID = "1482232995573403820";
 const VOICE_CHANNEL_ID = "1482222083634368525";
+
 const MAX_PLAYERS = 32;
+
+const VALOR_KILL = 1;
+const PREMIO_1 = 40;
+const PREMIO_2 = 25;
+const PREMIO_3 = 15;
+
+const ADMINS = ["649334731145740361"];
 
 let scrimOpen = false;
 let players = [];
 let kills = {};
+let weeklyKills = {};
 let panelMessage = null;
+let row = null;
 
 client.once("ready", async () => {
 
@@ -34,11 +44,6 @@ console.log("ROU7 SCRIM BOT ONLINE");
 try {
 
 const channel = await client.channels.fetch(VOICE_CHANNEL_ID);
-
-if(!channel){
-console.log("Canal de voz não encontrado");
-return;
-}
 
 joinVoiceChannel({
 channelId: channel.id,
@@ -61,7 +66,12 @@ if(message.author.bot) return;
 const args = message.content.split(" ");
 const cmd = args[0].toLowerCase();
 
+/* abrir scrim */
+
 if(cmd === "!abrirscrim"){
+
+if(!ADMINS.includes(message.author.id))
+return message.reply("❌ Apenas admins.");
 
 if(scrimOpen)
 return message.reply("⚠️ Já existe uma scrim aberta.");
@@ -70,7 +80,7 @@ scrimOpen = true;
 players = [];
 kills = {};
 
-const row = new ActionRowBuilder().addComponents(
+row = new ActionRowBuilder().addComponents(
 
 new ButtonBuilder()
 .setCustomId("scrim_entrar")
@@ -95,12 +105,14 @@ components:[row]
 
 }
 
+/* lista */
+
 if(cmd === "!lista"){
 
 if(players.length === 0)
 return message.channel.send("📋 Nenhum jogador inscrito.");
 
-const lista = players.map(id=>`<@${id}>`).join("\n");
+const lista = players.map((id,i)=>`${i+1}. <@${id}>`).join("\n");
 
 message.channel.send(`📋 **INSCRITOS**
 
@@ -108,7 +120,12 @@ ${lista}`);
 
 }
 
+/* registrar kill */
+
 if(cmd === "!kill"){
+
+if(!ADMINS.includes(message.author.id))
+return message.reply("❌ Apenas admins.");
 
 const user = message.mentions.users.first();
 const amount = parseInt(args[2]);
@@ -117,8 +134,10 @@ if(!user || isNaN(amount))
 return message.reply("Uso: !kill @player quantidade");
 
 if(!kills[user.id]) kills[user.id] = 0;
+if(!weeklyKills[user.id]) weeklyKills[user.id] = 0;
 
 kills[user.id] += amount;
+weeklyKills[user.id] += amount;
 
 message.channel.send(`💀 ${user} recebeu **${amount} kills**
 
@@ -126,10 +145,9 @@ Total: **${kills[user.id]}**`);
 
 }
 
-if(cmd === "!ranking"){
+/* ranking */
 
-if(Object.keys(kills).length === 0)
-return message.channel.send("📊 Nenhuma kill registrada.");
+if(cmd === "!ranking"){
 
 const ranking = Object.entries(kills)
 .sort((a,b)=>b[1]-a[1])
@@ -138,23 +156,62 @@ const ranking = Object.entries(kills)
 
 message.channel.send(`🏆 **RANKING**
 
-${ranking}`);
+${ranking || "Sem dados"}`);
 
 }
 
+/* ranking semanal */
+
+if(cmd === "!weekly"){
+
+const ranking = Object.entries(weeklyKills)
+.sort((a,b)=>b[1]-a[1])
+.slice(0,10)
+.map((x,i)=>`${i+1}. <@${x[0]}> — ${x[1]} kills`)
+.join("\n");
+
+message.channel.send(`🏆 **TOP 10 SEMANAL**
+
+${ranking || "Sem dados"}`);
+
+}
+
+/* finalizar */
+
 if(cmd === "!finalizar"){
+
+if(!ADMINS.includes(message.author.id))
+return message.reply("❌ Apenas admins.");
 
 scrimOpen = false;
 
-const ranking = Object.entries(kills)
-.sort((a,b)=>b[1]-a[1])
-.slice(0,3)
-.map((x,i)=>`${i+1}º <@${x[0]}> — ${x[1]} kills`)
-.join("\n");
+const rankingArray = Object.entries(kills)
+.sort((a,b)=>b[1]-a[1]);
+
+let premioTotalSala = 0;
+
+let resultado = rankingArray.map((x,i)=>{
+
+let player = `<@${x[0]}>`;
+let kill = x[1];
+
+let premio = kill * VALOR_KILL;
+
+if(i === 0) premio += PREMIO_1;
+if(i === 1) premio += PREMIO_2;
+if(i === 2) premio += PREMIO_3;
+
+premioTotalSala += premio;
+
+return `${i+1}º ${player} — ${kill} kills | 💰 R$${premio}`;
+
+}).join("\n");
 
 message.channel.send(`🏆 **SCRIM FINALIZADA**
 
-${ranking || "Nenhum resultado"}`);
+${resultado}
+
+💰 **Premiação total:** R$${premioTotalSala}`);
 
 players = [];
 kills = {};
@@ -164,16 +221,13 @@ panelMessage = null;
 
 });
 
+/* interação botões */
+
 client.on("interactionCreate", async (interaction)=>{
 
 if(!interaction.isButton()) return;
 
-try{
-
 await interaction.deferReply({ephemeral:true});
-
-if(!scrimOpen)
-return interaction.editReply("❌ Nenhuma scrim aberta.");
 
 const member = interaction.member;
 
@@ -211,30 +265,46 @@ await interaction.editReply(`❌ Saiu (${players.length}/${MAX_PLAYERS})`);
 
 }
 
-if(panelMessage){
+/* fechar scrim se lotar */
+
+if(players.length >= MAX_PLAYERS){
+
+scrimOpen = false;
+
+await panelMessage.edit({
+content:`🎮 **SCRIM LOTADA**
+
+👥 Jogadores: **${players.length}/${MAX_PLAYERS}**
+
+🚫 Inscrições encerradas.`,
+components:[]
+});
+
+return;
+
+}
+
+/* atualizar lista no painel */
+
+let lista = players.map((id,i)=>`${i+1}. <@${id}>`).join("\n");
+
+if(lista === "") lista = "Nenhum jogador";
 
 await panelMessage.edit({
 content:`🎮 **SCRIM ABERTA**
 
 👥 Jogadores: **${players.length}/${MAX_PLAYERS}**
 
-Clique no botão para participar.`
+📋 **Lista**
+${lista}`,
+components:[row]
 });
-
-}
-
-}catch(err){
-
-console.log("Erro na interação:", err);
-
-}
 
 });
 
 client.login(process.env.TOKEN);
 
-
-/* servidor web para render */
+/* servidor render */
 
 const app = express();
 
