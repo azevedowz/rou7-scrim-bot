@@ -1,4 +1,4 @@
-const { 
+const {
 Client,
 GatewayIntentBits,
 ActionRowBuilder,
@@ -7,7 +7,6 @@ ButtonStyle
 } = require("discord.js");
 
 const { joinVoiceChannel } = require("@discordjs/voice");
-
 const express = require("express");
 
 const client = new Client({
@@ -28,18 +27,11 @@ let players = [];
 let kills = {};
 let panelMessage = null;
 
-client.once("ready", async ()=>{
+client.once("ready", async () => {
 
 console.log("ROU7 SCRIM BOT ONLINE");
 
-setTimeout(()=>{
-
-const guild = client.guilds.cache.first();
-
-if(!guild){
-console.log("Servidor não encontrado");
-return;
-}
+try {
 
 const channel = await client.channels.fetch(VOICE_CHANNEL_ID);
 
@@ -50,13 +42,15 @@ return;
 
 joinVoiceChannel({
 channelId: channel.id,
-guildId: guild.id,
-adapterCreator: guild.voiceAdapterCreator
+guildId: channel.guild.id,
+adapterCreator: channel.guild.voiceAdapterCreator
 });
 
 console.log("Bot entrou na call");
 
-},5000);
+} catch(err){
+console.log("Erro ao entrar na call:", err);
+}
 
 });
 
@@ -164,6 +158,7 @@ ${ranking || "Nenhum resultado"}`);
 
 players = [];
 kills = {};
+panelMessage = null;
 
 }
 
@@ -172,6 +167,8 @@ kills = {};
 client.on("interactionCreate", async (interaction)=>{
 
 if(!interaction.isButton()) return;
+
+try{
 
 await interaction.deferReply({ephemeral:true});
 
@@ -204,7 +201,7 @@ if(interaction.customId === "scrim_sair"){
 if(!players.includes(interaction.user.id))
 return interaction.editReply("⚠️ Você não está inscrito.");
 
-players = players.filter(p=>p!==interaction.user.id);
+players = players.filter(p=>p !== interaction.user.id);
 
 try{
 await member.roles.remove(ROLE_ID);
@@ -226,12 +223,18 @@ Clique no botão para participar.`
 
 }
 
+}catch(err){
+
+console.log("Erro na interação:", err);
+
+}
+
 });
 
 client.login(process.env.TOKEN);
 
 
-/* servidor para render */
+/* servidor web para render */
 
 const app = express();
 
